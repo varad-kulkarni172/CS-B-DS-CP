@@ -1,0 +1,141 @@
+# importing libraries----
+library(caTools)
+library(rpart)
+library(rpart.plot)
+library(e1071)
+library(randomForest)
+library(caret)
+library(Metrics)
+
+#Reading Dataset----
+dataset<-read.csv("Gold_pp_final_dataset.csv")
+#dataset<-dataset[,1:17]
+
+#Removing outliers----
+detect_outliers<-function(x){
+  quantile1<-quantile(x,probs=.25,na.rm = TRUE)
+  quantile3<-quantile(x,probs=.75,na.rm = TRUE)
+  IQR = quantile3 - quantile1
+  x>quantile3 + (IQR*1.5)| x< quantile1 - (IQR*1.5)
+}
+
+remove_outlier <- function(dataframe,columns=names(dataframe)){
+  for(col in columns){
+    dataframe<-dataframe[!detect_outliers(dataframe[[col]]), ]
+  }
+  print(dataframe)
+}
+
+dataset<-remove_outlier(dataset,c('SP_open','SP_high','SP_low','SP_close','SP_Ajclose','SP_volume','DJ_open','DJ_high','DJ_low','DJ_close','DJ_Ajclose','DJ_volume','EU_Price','EU_open'	,'EU_high','EU_low'))
+#df2<-remove_outlier(dataset,c('SP_open','SP_high'	,'SP_low',	'SP_close',	'SP_Ajclose',	'SP_volume'	,'DJ_open',	'DJ_high'	,'DJ_low',	'DJ_close',	'DJ_Ajclose',	'DJ_volume',	'EU_Price', 'EU_open'	,'EU_high',	'EU_low',	'Adj Close'))
+
+# splitting dataset into train and test set----
+
+set.seed(123)
+split=sample.split(dataset$Adj.Close,SplitRatio = 0.8)
+train_data = subset(dataset, split == TRUE)
+test_data = subset(dataset, split == FALSE)
+
+#MLR----
+
+
+#l1<-lm(Adj.Close ~.,train_data)
+l2<-lm(Adj.Close ~ SP_open +  SP_low + SP_close + SP_Ajclose + SP_volume + DJ_volume + EU_high ,train_data)  
+s2<-summary(l2)
+# predicting the test set results
+pred1 = predict(l2, newdata = test_data)
+
+cat("Results of dataset model by MLR algorithm :")
+rsquare1 = R2(test_data$Adj.Close, pred1)
+cat("\nvalue of Rsquare is : ", rsquare1)
+mae1<- mae(test_data$Adj.Close,pred1)
+cat("\nvalue of mae is: ",mae1)
+rmse1 <- rmse(test_data$Adj.Close, pred1)
+cat ("\nvalue of rmse is: ",rmse1)
+cat("\n\n\n")
+#rmse=sqrt(mean((pred1-test_data$Adj.Close)^2,na.rm = TRUE))
+
+
+
+# Decision Tree----
+reg2 <- rpart(formula = Adj.Close ~ .,data = train_data)
+#s3<-summary(reg2)
+pred2<- predict(reg2, newdata = test_data)
+cat("Results of dataset model by Decision Tree algorithm :")
+rsquare2<- R2(test_data$Adj.Close, pred2)
+cat("\nvalue of Rsquare is: ", rsquare2 )
+mae2<- mae(test_data$Adj.Close,pred2)
+cat("\nvalue of mae is: ",mae2)
+rmse2 <- rmse(test_data$Adj.Close, pred2)
+cat ("\nvalue of rmse is: ",rmse2)
+cat("\n\n\n")
+rpart.plot(reg2)
+
+# Random Forest----
+set.seed(123)
+#reg3<- randomForest(x = train_data[1:16], y = train_data$Adj.Close,ntree = 500)
+#print(importance(reg3,type=NULL, class=NULL, scale=TRUE,))
+reg3<- randomForest(x = train_data[c(1,2,3,4,5,7,8,9,10,11,13,14,15,16)], y = train_data$Adj.Close,ntree = 500 )
+pred3<- predict(reg3, newdata = test_data)
+cat("Results of dataset model by RandomForest algorithm :")
+rsquare3<- R2(test_data$Adj.Close, pred3)
+cat("\nvalue of Rsquare is: ", rsquare3 )
+mae3<- mae(test_data$Adj.Close,pred3)
+cat("\nvalue of mae is: ",mae3)
+rmse3 <- rmse(test_data$Adj.Close, pred3)
+cat ("\nvalue of rmse is: ",rmse3)
+cat("\n\n\n")
+
+#SVM
+svm_model <- svm(Adj.Close ~ SP_open + SP_high + SP_low + SP_close + SP_Ajclose + SP_volume + DJ_open + DJ_high + DJ_low + DJ_close + DJ_Ajclose + DJ_volume + EU_Price + EU_open + EU_high + EU_low,train_data)  
+s4<-summary(svm_model,type=NULL, class=NULL, scale=TRUE,)
+pred4<- predict(svm_model, newdata = test_data)
+cat("Results of dataset model by SVM :")
+rsquare4<- R2(test_data$Adj.Close, pred4)
+cat("\nvalue of Rsquare is: ", rsquare2 )
+mae4<- mae(test_data$Adj.Close,pred4)
+cat("\nvalue of mae is: ",mae4)
+rmse4 <- rmse(test_data$Adj.Close, pred4)
+cat ("\nvalue of rmse is: ",rmse4)
+cat("\n\n\n")
+
+#Scatter Plot MLR
+data_gpp <- data.frame(x=test_data$SP_open, y=c(test_data$Adj.Close,pred1),group = c(rep("Adjacent Close", nrow(test_data)),rep("predicted", nrow(test_data))))
+ggplot(data_gpp,aes(x,y,col = group)) + geom_point()+ labs(title = "MLR")
+
+#Scatter Plot Decision Tree
+data_gpp <- data.frame(x=test_data$SP_open, y=c(test_data$Adj.Close,pred2),group = c(rep("Adjacent Close", nrow(test_data)),rep("predicted", nrow(test_data))))
+ggplot(data_gpp,aes(x,y,col = group)) + geom_point()+ labs(title = "Decision Tree")
+
+#Scatter Plot Random Forest
+data_gpp <- data.frame(x=test_data$SP_open, y=c(test_data$Adj.Close,pred3),group = c(rep("Adjacent Close", nrow(test_data)),rep("predicted", nrow(test_data))))
+ggplot(data_gpp,aes(x,y,col = group)) + geom_point()+ labs(title = "Random Forest")
+
+#Scatter Plot SVM
+data_gpp <- data.frame(x=test_data$SP_open, y=c(test_data$Adj.Close,pred4),group = c(rep("Adjacent Close", nrow(test_data)),rep("predicted", nrow(test_data))))
+ggplot(data_gpp,aes(x,y,col = group)) + geom_point()+ labs(title = "SVM")
+
+#BoxPlot for all values comparison of all Algorithm
+color = c("green", "orange", "brown", "blue")
+Parameters<- c("RSquare", "MAE", "RMSE")
+regions <- c("MLR", "DT", "RF", "SVM")
+
+values<- matrix(c(rsquare1,mae1,rmse1,rsquare2,mae2,rmse2,rsquare3,mae3,rmse3,rsquare4,mae4,rmse4),nrow=4,ncol=3, byrow = TRUE)
+barplot(values, main = "Comparision of Algorithm", names.arg = Parameters, xlab = "Parameters", ylab = "Values", col = color, beside = TRUE)
+legend("topleft",regions, cex = 0.4, fill = color )
+
+#Boxplot for rquare value comp of all algorithm
+values<- matrix(c(rsquare1,rsquare2,rsquare3,rsquare4),nrow=4,ncol=1, byrow = TRUE)
+barplot(values, main = "Comparison of Algorithm", names.arg ="R square", xlab = "Parameters", ylab = "Values", col = color, beside = TRUE)
+legend("topleft",regions, cex = 0.4, fill = color )
+
+#Boxplot for MAE value comp of all algorithm
+values<- matrix(c(mae1,mae2,mae3,mae4),nrow=4,ncol=1, byrow = TRUE)
+barplot(values, main = "Comparison of Algorithm", names.arg ="MAE", xlab = "Parameters", ylab = "Values", col = color, beside = TRUE)
+legend("topleft",regions, cex = 0.4, fill = color )
+
+#Boxplot for RMSE value comp of all algorithm
+values<- matrix(c(rmse1,rmse2,rmse3,rmse4),nrow=4,ncol=1, byrow = TRUE)
+barplot(values, main = "Comparison of Algorithm", names.arg ="RMSE", xlab = "Parameters", ylab = "Values", col = color, beside = TRUE)
+legend("topleft",regions, cex = 0.4, fill = color )
+
